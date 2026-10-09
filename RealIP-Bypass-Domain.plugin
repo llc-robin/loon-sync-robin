@@ -1,0 +1,9 @@
+#!name=RealIP-Bypass-Domain
+#!desc=realip绕过FakeIP，*.llc-robin.online & *.chinaoct.com
+#!author=Custom
+[General]
+real-ip = *.llc-robin.online,*.chinaoct.com
+
+[Rule]
+DOMAIN-SUFFIX,llc-robin.online,DIRECT
+DOMAIN-SUFFIX,chinaoct.com,DIRECT
