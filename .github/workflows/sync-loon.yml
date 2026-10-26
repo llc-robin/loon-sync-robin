@@ -1,8 +1,11 @@
+```yaml
 name: Sync & Patch Loon Config
+
 on:
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
+
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -22,19 +25,106 @@ jobs:
 
       - name: Download upstream config
         run: |
-          curl -L "https://raw.githubusercontent.com/luestr/ProxyResource/refs/heads/main/Tool/Loon/Lcf/zh-CN/Loon_Auto_Select_Config_By_iKeLee.lcf" -o Loon_Auto_Select_Config_By_iKeLee.lcf
+          curl -fLsS --retry 3 \
+            "https://raw.githubusercontent.com/luestr/ProxyResource/refs/heads/main/Tool/Loon/Lcf/zh-CN/Loon_Auto_Select_Config_By_iKeLee.lcf" \
+            -o Loon_Auto_Select_Config_By_iKeLee.lcf
 
-      - name: Patch 自定义修改
+      - name: Add custom plugins
         run: |
-          FILE="Loon_Auto_Select_Config_By_iKeLee.lcf"
-          sed -i 's|policy=Proxy|policy=HK|g' "${FILE}"
-          sed -i '/^\[General\]/a\allow-remote = false' "${FILE}"
-          sed -i 's|^remote-script|# remote-script|g' "${FILE}"
+          python3 <<'PY'
+          from pathlib import Path
+
+          file = Path("Loon_Auto_Select_Config_By_iKeLee.lcf")
+          content = file.read_text(encoding="utf-8")
+          lines = content.splitlines(keepends=True)
+
+          plugins = [
+              "https://raw.githubusercontent.com/llc-robin/loon-sync-robin/main/RealIP-Bypass-Domain.plugin, enabled=true",
+              "https://cdn.jsdelivr.net/gh/fmz200/wool_scripts@main/Loon/plugin/blockAds.plugin, enabled=true",
+          ]
+
+          # 定位 [Plugin] 段
+          start = next(
+              (i for i, line in enumerate(lines)
+               if line.strip() == "[Plugin]"),
+              None
+          )
+
+          if start is None:
+              raise SystemExit("错误：配置文件中不存在 [Plugin] 段，停止修改。")
+
+          # 定位 [Plugin] 段的结束位置
+          end = next(
+              (i for i in range(start + 1, len(lines))
+               if lines[i].strip().startswith("[")
+               and lines[i].strip().endswith("]")),
+              len(lines)
+          )
+
+          section = "".join(lines[start + 1:end])
+
+          # 仅添加不存在的插件，避免重复
+          additions = []
+          for plugin in plugins:
+              url = plugin.split(",")[0]
+              if url not in section:
+                  additions.append(plugin + "\n")
+
+          if additions:
+              # 如果前一行没有换行符，先补换行符
+              if end > start and lines[end - 1] and not lines[end - 1].endswith(("\n", "\r")):
+                  lines[end - 1] += "\n"
+
+              lines[end:end] = additions
+              file.write_text("".join(lines), encoding="utf-8")
+              print(f"新增 {len(additions)} 个插件。")
+          else:
+              print("两个插件均已存在，无需修改。")
+          PY
+
+      - name: Verify plugins
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          file = Path("Loon_Auto_Select_Config_By_iKeLee.lcf")
+          lines = file.read_text(encoding="utf-8").splitlines()
+
+          start = next(
+              (i for i, line in enumerate(lines)
+               if line.strip() == "[Plugin]"),
+              None
+          )
+
+          if start is None:
+              raise SystemExit("验证失败：[Plugin] 段不存在。")
+
+          end = next(
+              (i for i in range(start + 1, len(lines))
+               if lines[i].strip().startswith("[")
+               and lines[i].strip().endswith("]")),
+              len(lines)
+          )
+
+          section = "\n".join(lines[start + 1:end])
+
+          required = [
+              "https://raw.githubusercontent.com/llc-robin/loon-sync-robin/main/RealIP-Bypass-Domain.plugin",
+              "https://cdn.jsdelivr.net/gh/fmz200/wool_scripts@main/Loon/plugin/blockAds.plugin",
+          ]
+
+          for url in required:
+              if url not in section:
+                  raise SystemExit(f"验证失败：插件未正确写入 [Plugin] 段：{url}")
+
+          print("验证成功：两个插件均存在于 [Plugin] 段。")
+          PY
 
       - name: Commit & Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add Loon_Auto_Select_Config_By_iKeLee.lcf
-          git diff --quiet && git diff --staged --quiet || git commit -m "Auto update lcf $(date +'%Y-%m-%d %H:%M')"
+          git diff --cached --quiet || git commit -m "Auto update lcf $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
+```
