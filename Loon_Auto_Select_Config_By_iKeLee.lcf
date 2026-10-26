@@ -4,7 +4,6 @@
 # 更多插件可前往 https://hub.kelee.one 安装
 
 [General]
-allow-remote = false
 ip-mode=v4-only
 ipv6-vif=off
 dns-server=system
@@ -95,6 +94,8 @@ https://kelee.one/Tool/Loon/Lpx/BoxJs.lpx, policy=兜底后备策略, enabled=tr
 https://kelee.one/Tool/Loon/Lpx/Sub-Store.lpx, policy=兜底后备策略, enabled=true
 https://kelee.one/Tool/Loon/Lpx/Script-Hub.lpx, policy=兜底后备策略, enabled=true
 
+https://raw.githubusercontent.com/llc-robin/loon-sync-robin/main/RealIP-Bypass-Domain.plugin, enabled=true
+https://cdn.jsdelivr.net/gh/fmz200/wool_scripts@main/Loon/plugin/blockAds.plugin, enabled=true
 [Mitm]
 hostname=
 ca-p12=
