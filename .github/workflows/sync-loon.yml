@@ -32,81 +32,144 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
-          import re
 
           file = Path("Loon_Auto_Select_Config_By_iKeLee.lcf")
-
-          # 读取原始文件，保留原有换行格式
           content = file.read_bytes().decode("utf-8")
+
+          # 保留原文件的换行格式
           newline = "\r\n" if "\r\n" in content else "\n"
+          lines = content.splitlines(keepends=True)
 
           plugins = [
               "https://raw.githubusercontent.com/llc-robin/loon-sync-robin/main/RealIP-Bypass-Domain.plugin, enabled=true",
               "https://cdn.jsdelivr.net/gh/fmz200/wool_scripts@main/Loon/plugin/blockAds.plugin, enabled=true",
           ]
 
-          # 定位 [Plugin] 段标题
-          match = re.search(r"(?m)^\[Plugin\][ \t]*$", content)
-          if not match:
-              raise SystemExit("错误：配置文件中不存在 [Plugin] 段，停止修改。")
-
-          start = match.end()
-
-          # 定位下一段标题，例如 [Mitm]
-          next_section = re.search(
-              r"(?m)^\[[^\]\r\n]+\][ \t]*$",
-              content[start:]
+          # 定位 [Plugin] 段
+          start = next(
+              (i for i, line in enumerate(lines)
+               if line.strip() == "[Plugin]"),
+              None
           )
-          end = start + next_section.start() if next_section else len(content)
 
-          section = content[start:end]
+          if start is None:
+              raise SystemExit(
+                  "错误：找不到 [Plugin] 段，停止处理。"
+              )
 
-          # 只添加当前 [Plugin] 段中不存在的插件
+          # 定位 [Plugin] 段的结束位置
+          end = next(
+              (i for i in range(start + 1, len(lines))
+               if lines[i].strip().startswith("[")
+               and lines[i].strip().endswith("]")),
+              len(lines)
+          )
+
+          # 保存插件段之外的原始内容，用于保护性校验
+          original_prefix = "".join(lines[:start + 1])
+          original_suffix = "".join(lines[end:])
+
+          # 只检查 [Plugin] 段内的插件
+          section = "".join(lines[start + 1:end])
+
           additions = []
           for plugin in plugins:
               url = plugin.split(",")[0]
+
               if url not in section:
                   additions.append(plugin)
 
           if not additions:
-              print("两个插件均已存在，无需修改。")
+              print("两个插件均已存在，不需要修改。")
           else:
-              # 将段末尾的换行符暂时分离，避免吞掉 [Mitm] 前的空行
-              body = section.rstrip("\r\n")
-              trailing = section[len(body):]
+              # 找到 [Plugin] 段末尾的空白行，
+              # 将新插件插入空白行之前，保留原有空行
+              insert_at = end
 
-              # 在最后一条现有插件后直接添加，不插入额外空行
-              if body:
-                  body += newline
+              while (
+                  insert_at > start + 1
+                  and lines[insert_at - 1].strip() == ""
+              ):
+                  insert_at -= 1
 
-              updated_section = body + newline.join(additions) + trailing
+              # 确保插件前一行有换行符
+              if insert_at == start + 1:
+                  if not lines[start].endswith(("\n", "\r")):
+                      lines[start] += newline
+              elif (
+                  insert_at > 0
+                  and not lines[insert_at - 1].endswith(("\n", "\r"))
+              ):
+                  lines[insert_at - 1] += newline
 
-              content = content[:start] + updated_section + content[end:]
-              file.write_bytes(content.encode("utf-8"))
+              # 只插入缺失的插件行
+              new_lines = [
+                  plugin + newline for plugin in additions
+              ]
 
-              print(f"新增 {len(additions)} 个插件。")
+              lines[insert_at:insert_at] = new_lines
+              updated_content = "".join(lines)
+
+              # 确认 [Plugin] 之前的内容没有变化
+              if not updated_content.startswith(original_prefix):
+                  raise SystemExit(
+                      "错误：[Plugin] 之前的内容发生变化，停止写入。"
+                  )
+
+              # 确认 [Plugin] 之后的内容没有变化
+              if (
+                  original_suffix
+                  and not updated_content.endswith(original_suffix)
+              ):
+                  raise SystemExit(
+                      "错误：[Plugin] 之后的内容发生变化，停止写入。"
+                  )
+
+              # 写入文件
+              file.write_bytes(updated_content.encode("utf-8"))
+
+              print(f"成功新增 {len(additions)} 个插件。")
+
+          # 最终保护性检查：已有的配置不得丢失
+          final_content = file.read_bytes().decode("utf-8")
+
+          if (
+              "allow-remote = false" in content
+              and "allow-remote = false" not in final_content
+          ):
+              raise SystemExit(
+                  "错误：allow-remote = false 丢失，停止提交。"
+              )
+
+          print("检查通过：插件处理完成，其他配置未被主动修改。")
           PY
 
       - name: Verify plugins
         run: |
           python3 <<'PY'
           from pathlib import Path
-          import re
 
           file = Path("Loon_Auto_Select_Config_By_iKeLee.lcf")
           content = file.read_text(encoding="utf-8")
+          lines = content.splitlines()
 
-          match = re.search(r"(?m)^\[Plugin\][ \t]*$", content)
-          if not match:
+          start = next(
+              (i for i, line in enumerate(lines)
+               if line.strip() == "[Plugin]"),
+              None
+          )
+
+          if start is None:
               raise SystemExit("验证失败：[Plugin] 段不存在。")
 
-          start = match.end()
-          next_section = re.search(
-              r"(?m)^\[[^\]\r\n]+\][ \t]*$",
-              content[start:]
+          end = next(
+              (i for i in range(start + 1, len(lines))
+               if lines[i].strip().startswith("[")
+               and lines[i].strip().endswith("]")),
+              len(lines)
           )
-          end = start + next_section.start() if next_section else len(content)
-          section = content[start:end]
+
+          section = "\n".join(lines[start + 1:end])
 
           required = [
               "https://raw.githubusercontent.com/llc-robin/loon-sync-robin/main/RealIP-Bypass-Domain.plugin",
@@ -115,9 +178,11 @@ jobs:
 
           for url in required:
               if url not in section:
-                  raise SystemExit(f"验证失败：插件未正确写入 [Plugin] 段：{url}")
+                  raise SystemExit(
+                      f"验证失败：插件不在 [Plugin] 段内：{url}"
+                  )
 
-          print("验证成功：两个插件均存在于 [Plugin] 段。")
+          print("验证成功：两个插件均位于 [Plugin] 段。")
           PY
 
       - name: Commit & Push
