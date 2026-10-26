@@ -1,8 +1,8 @@
 name: Sync & Patch Loon Config
 on:
   schedule:
-    - cron: '0 */6 * * *' # UTC时间，每6小时跑一次；北京时间=UTC+8
-  workflow_dispatch: # 支持手动点击运行测试
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -20,26 +20,21 @@ jobs:
           token: ${{ secrets.MY_PAT }}
           fetch-depth: 0
 
-      - name: Download upstream loon.conf
+      - name: Download upstream config
         run: |
-          # ========== 这里替换成你的上游raw地址 ==========
-          curl -L "https://raw.githubusercontent.com/luestr/ProxyResource/refs/heads/main/Tool/Loon/Lcf/zh-CN/Loon_Auto_Select_Config_By_iKeLee.lcf" -o loon.conf
+          curl -L "https://raw.githubusercontent.com/luestr/ProxyResource/refs/heads/main/Tool/Loon/Lcf/zh-CN/Loon_Auto_Select_Config_By_iKeLee.lcf" -o Loon_Auto_Select_Config_By_iKeLee.lcf
 
-      - name: Patch 自定义修改（在这里改你的规则）
+      - name: Patch 自定义修改
         run: |
-          # 示例：替换策略组，用 | 做分隔符避免url的/冲突
-          sed -i 's|policy=Proxy|policy=HK|g' loon.conf
-          # 在[General]下面新增一行
-          sed -i '/^\[General\]/a\allow-remote = false' loon.conf
-          # 注释某一行
-          sed -i 's|^remote-script|# remote-script|g' loon.conf
-          # 你在这里继续添加更多sed替换命令
+          FILE="Loon_Auto_Select_Config_By_iKeLee.lcf"
+          sed -i 's|policy=Proxy|policy=HK|g' "${FILE}"
+          sed -i '/^\[General\]/a\allow-remote = false' "${FILE}"
+          sed -i 's|^remote-script|# remote-script|g' "${FILE}"
 
       - name: Commit & Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add loon.conf
-          # 没有变化就跳过提交
-          git diff --quiet && git diff --staged --quiet || git commit -m "Auto update loon $(date +'%Y-%m-%d %H:%M')"
+          git add Loon_Auto_Select_Config_By_iKeLee.lcf
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto update lcf $(date +'%Y-%m-%d %H:%M')"
           git push
