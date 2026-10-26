@@ -1,4 +1,3 @@
-```yaml
 name: Sync & Patch Loon Config
 
 on:
@@ -127,4 +126,3 @@ jobs:
           git add Loon_Auto_Select_Config_By_iKeLee.lcf
           git diff --cached --quiet || git commit -m "Auto update lcf $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
-```
