@@ -26,14 +26,14 @@ jobs:
         run: |
           curl -fLsS --retry 3 \
             "https://raw.githubusercontent.com/luestr/ProxyResource/refs/heads/main/Tool/Loon/Lcf/zh-CN/Loon_Auto_Select_Config_By_iKeLee.lcf" \
-            -o Loon_Auto_Select_Config_By_iKeLee.lcf
+            -o Loon_config_by_robin.lcf
 
       - name: Add custom plugins
         run: |
           python3 <<'PY'
           from pathlib import Path
 
-          file = Path("Loon_Auto_Select_Config_By_iKeLee.lcf")
+          file = Path("Loon_config_by_robin.lcf")
           content = file.read_bytes().decode("utf-8")
 
           # 保留原文件的换行格式
@@ -149,7 +149,7 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          file = Path("Loon_Auto_Select_Config_By_iKeLee.lcf")
+          file = Path("Loon_config_by_robin.lcf")
           content = file.read_text(encoding="utf-8")
           lines = content.splitlines()
 
@@ -189,6 +189,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add Loon_Auto_Select_Config_By_iKeLee.lcf
+          git add Loon_config_by_robin.lcf
           git diff --cached --quiet || git commit -m "Auto update lcf $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
